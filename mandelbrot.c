@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
       }else{ //deal death to slave
         MPI_Send(-1,1,MPI_INT,slave_id,death_tag, MPI_COMM_WORLD);
       }
-      display(proc_row_num, color);
+      output(proc_row_num, color);
     } while (slave_count > 0);
   }
   else { //slave
@@ -83,8 +83,16 @@ int cal_pixel(complex c)
 return count;
 }
     
-int display(int row, color[])
+int output(int row, color[])
 {
-  //write to a file 
+  ofstream file_handle;
+  file_handle.open("output.csv");
+  file_handle << row+"";
+  for (int i=0,i<color.length,i++){
+    file_handle << ","+color[i];
+  }
+  file_handle << "\n";
+  file_handle.close();
+  return 0;
 }
 
