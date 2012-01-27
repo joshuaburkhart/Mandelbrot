@@ -63,14 +63,8 @@ int main(int argc, char *argv[])
     }
     do {
       result r;
-      printf("master waiting for slave data\n");
       MPI_Recv(&r,1,mpi_result_datatype,MPI_ANY_SOURCE,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
-      printf("master received slave data for row %i with color size %i\n",r.row_num,(int)(sizeof(r.color)/sizeof(int)));
-      for(int i=0;i<((int)(sizeof(r.color)/sizeof(int)));i++){
-        printf("rcolor_val: master color[%i] is %i\n",i,r.color[i]);
-      }
       busy_slave_count--;
-      printf("unproc_row_num is %i\n",unproc_row_num);
       if(unproc_row_num < display_height) { //send row to slave
         MPI_Send(&unproc_row_num,1,MPI_INT,r.slave_id,DATA_TAG, MPI_COMM_WORLD);
         unproc_row_num++;
@@ -78,41 +72,31 @@ int main(int argc, char *argv[])
       }else{ //kill slave
         MPI_Send(&unproc_row_num,1,MPI_INT,r.slave_id,KILL_TAG, MPI_COMM_WORLD);
       }
-      printf("master outputting row %i with %i first color\n",r.row_num,r.color[0]);
       output(r.row_num, r.color, (int)(sizeof(r.color)/sizeof(int)));
-    printf("busy_slave_count is %i\n",busy_slave_count);
     }while(busy_slave_count > 0);
   }
   else { //slave
     result r;
     int unproc_row_num;
     MPI_Recv(&unproc_row_num,1,MPI_INT,MASTER_P,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
-    printf("slave %i with row %i and status %i\n",myid,unproc_row_num, s.MPI_TAG);
     while(s.MPI_TAG == DATA_TAG) {
       complx c;
-      printf("imag_min is %i, unproc_row_num is %i, and scale_imag is %2.2f\n",imag_min,unproc_row_num,scale_imag);
       c.imag = imag_min + ((float) unproc_row_num * scale_imag);
-      printf("c.imag is %2.2f for row %i\n",c.imag,unproc_row_num);
       for (int col_num = 0; col_num < display_width; col_num++) {
-        printf("col_num is %i, display_width is %i\n",col_num,display_width);
         c.real = real_min + ((float) col_num * scale_real);
         r.color[col_num] = cal_pixel(c);
-        printf("rcolor_val: r.color size is %i, r.color[%i] is %i\n",(int)(sizeof(r.color)/sizeof(int)),col_num,r.color[col_num]);
       }
       r.slave_id = myid;
       r.row_num = unproc_row_num;
-      printf("sending slave_id %i and row_num %i\n",r.slave_id,r.row_num);
       MPI_Send(&r,1,mpi_result_datatype,MASTER_P,DATA_TAG,MPI_COMM_WORLD);
       MPI_Recv(&unproc_row_num,1,MPI_INT,MASTER_P,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
     }
-  printf("slave %i dying\n",myid);
-  return 0;
   }
+return MPI_Finalize();
 }
 
 int cal_pixel(struct complx c)
 {
-  printf("cal_pixel called with c.imag %2.2f and c.real %2.2f\n",c.imag,c.real);
   int count, max_iter;
   complx z;
   float temp, lengthsq;
@@ -126,20 +110,16 @@ int cal_pixel(struct complx c)
     z.real = temp;
     lengthsq = z.real * z.real + z.imag * z.imag;
     count++;
-    printf("count_size is %i and lengthsq is %2.2f\n",count,lengthsq);
   }while((lengthsq < 4.0) && (count < max_iter));
-printf("cal_pixel returning %i\n",count);
 return count;
 }
     
 int output(int row, int color[], int color_size)
 {
-  printf("color size is %i, int size is %i, and color_size is %i\n", (int) sizeof(color), (int) sizeof(int), color_size);
   ofstream file_handle;
   file_handle.open("output.csv",ios::app);
   file_handle << row;
   for(int i=0;i<color_size;i++){
-    printf("i is %i, color_size is %i, and color[%i] is %i\n",i,color_size,i,color[i]);
     file_handle << "," << color[i];
   }
   file_handle << "\n";
