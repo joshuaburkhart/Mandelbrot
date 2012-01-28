@@ -3,10 +3,9 @@
 #include <fstream>
 #include <string>
 #include <mpi.h>
+#include <stdlib.h>
 using namespace std;
 
-#define DATA_TAG 0
-#define KILL_TAG 1
 #define MASTER_P 0
 
 struct complx {
@@ -15,83 +14,78 @@ struct complx {
 };
 
 int cal_pixel(struct complx c);
-int output(int row, int color[], int color_size);
+int output(int **grid, int rows, int cols);
 
 int main(int argc, char *argv[])
 {
   MPI_Init(&argc,&argv);
 
-  int display_height=10;
-  int display_width=10;
+  int display_height=atoi(*(argv+1));
+  int display_width=atoi(*(argv+1));
   int real_min=-2;
   int real_max=2;
   int imag_min=-2;
   int imag_max=2;
-
-  struct result {
-    int slave_id;
-    int row_num;
-    int color[10]; //can mpi handle 'flexible' arrays?
-  };
-
-  //setting up slave result MPI datatype
-  int r_member_count=3;
-  int r_member_lengths[3] = {1,1,display_width};
-  MPI_Aint r_member_offsets[3] = {0,(int) sizeof(int),(int) sizeof(int) * 2};
-  MPI_Datatype r_member_types[3] = {MPI_INT,MPI_INT,MPI_INT};
-  int mpi_result_datatype;
-  MPI_Type_struct(r_member_count,r_member_lengths,r_member_offsets,r_member_types, &mpi_result_datatype);
-  MPI_Type_commit(&mpi_result_datatype);
-
-  int nprocs;
-  int myid;
+  
+  int nprocs,myid;
+  const int KILL_TAG = display_width + 1;
 
   float scale_real=(float)(imag_max-imag_min)/display_width;
   float scale_imag=(float)(real_max-real_min)/display_height;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+  if(nprocs > display_height+1){
+    if(myid==0)
+      printf("illegal slave count\nnprocs - 1 (%i) must be no larger than display_height (%i)\naborting...\n",nprocs - 1,display_height);
+    return MPI_Finalize();
+  }
   MPI_Status s;
+  int *color;
+  color = (int *) malloc(display_width * sizeof(int));
 
   if (myid == 0) { //master
+    int **grid;
+    grid = (int **) malloc(display_height * sizeof(int*));
+    for(int i=0;i<display_height;i++){
+      *(grid+i) = (int *) malloc(display_width * sizeof(int));
+    }
     int busy_slave_count = 0;
-    int unproc_row_num = 0;
+    int next_row_num = 0; //will be sent as tag
     for (int i = 1; i < nprocs; i++) { //give each slave a starting row
-      MPI_Send(&unproc_row_num,1,MPI_INT,i,DATA_TAG,MPI_COMM_WORLD);
+      MPI_Send(NULL,0,MPI_INT,i,next_row_num,MPI_COMM_WORLD);
       busy_slave_count++;
-      unproc_row_num++;
+      next_row_num++;
     }
     do {
-      result r;
-      MPI_Recv(&r,1,mpi_result_datatype,MPI_ANY_SOURCE,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
+      MPI_Recv(color,display_width,MPI_INT,MPI_ANY_SOURCE,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
       busy_slave_count--;
-      if(unproc_row_num < display_height) { //send row to slave
-        MPI_Send(&unproc_row_num,1,MPI_INT,r.slave_id,DATA_TAG, MPI_COMM_WORLD);
-        unproc_row_num++;
+      if(next_row_num < display_height) { //send row to slave
+        MPI_Send(NULL,0,MPI_INT,s.MPI_SOURCE,next_row_num,MPI_COMM_WORLD);
+        next_row_num++;
         busy_slave_count++;
       }else{ //kill slave
-        MPI_Send(&unproc_row_num,1,MPI_INT,r.slave_id,KILL_TAG, MPI_COMM_WORLD);
+        MPI_Send(NULL,0,MPI_INT,s.MPI_SOURCE,KILL_TAG,MPI_COMM_WORLD);
       }
-      output(r.row_num, r.color, (int)(sizeof(r.color)/sizeof(int)));
+      memcpy(*(grid+s.MPI_TAG),color,display_width*sizeof(int));
     }while(busy_slave_count > 0);
+    output(grid,display_height,display_width);
+    free(grid);
   }
-  else { //slave
-    result r;
-    int unproc_row_num;
-    MPI_Recv(&unproc_row_num,1,MPI_INT,MASTER_P,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
-    while(s.MPI_TAG == DATA_TAG) {
+  else{ //slave
+    MPI_Recv(NULL,0,MPI_INT,MASTER_P,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
+    while(s.MPI_TAG != KILL_TAG) {
       complx c;
-      c.imag = imag_min + ((float) unproc_row_num * scale_imag);
+      c.imag = imag_min + ((float) s.MPI_TAG * scale_imag);
       for (int col_num = 0; col_num < display_width; col_num++) {
         c.real = real_min + ((float) col_num * scale_real);
-        r.color[col_num] = cal_pixel(c);
+        *(color+col_num) = cal_pixel(c);
       }
-      r.slave_id = myid;
-      r.row_num = unproc_row_num;
-      MPI_Send(&r,1,mpi_result_datatype,MASTER_P,DATA_TAG,MPI_COMM_WORLD);
-      MPI_Recv(&unproc_row_num,1,MPI_INT,MASTER_P,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
+      MPI_Send(color,display_width,MPI_INT,MASTER_P,s.MPI_TAG,MPI_COMM_WORLD);
+      MPI_Recv(NULL,0,MPI_INT,MASTER_P,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
     }
   }
+free(color);
 return MPI_Finalize();
 }
 
@@ -114,15 +108,21 @@ int cal_pixel(struct complx c)
 return count;
 }
     
-int output(int row, int color[], int color_size)
+int output(int **grid, int rows, int cols)
 {
   ofstream file_handle;
-  file_handle.open("output.csv",ios::app);
-  file_handle << row;
-  for(int i=0;i<color_size;i++){
-    file_handle << "," << color[i];
+  file_handle.open("output.csv");
+  for(int row=0;row<rows;row++){
+    for(int col=0;col<cols;col++){
+      file_handle << *(*(grid+row)+col);
+      if(col==cols-1){
+        file_handle << "\n";
+      }
+      else{
+        file_handle << ",";
+      }
+    }
   }
-  file_handle << "\n";
   file_handle.close();
   return 0;
 }
