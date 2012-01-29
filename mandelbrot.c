@@ -18,14 +18,23 @@ int output(int **grid, int rows, int cols);
 
 int main(int argc, char *argv[])
 {
-  MPI_Init(&argc,&argv);
+  
+  int display_height=100; //default to 100 rows
+  int display_width=100; //default to 100 cols
 
-  int display_height=atoi(*(argv+1));
-  int display_width=atoi(*(argv+1));
-  int real_min=-2;
-  int real_max=2;
-  int imag_min=-2;
-  int imag_max=2;
+  for(int i=0;i<argc;i++){
+    if(0==strcmp(argv[i],"-h")){
+      display_height=atoi(argv[i+1]);
+    }
+    else if(0==strcmp(argv[i],"-w")){
+      display_width=atoi(argv[i+1]);
+    }
+  }
+
+  const int real_min=-2;
+  const int real_max=2;
+  const int imag_min=-2;
+  const int imag_max=2;
   
   int nprocs,myid;
   const int KILL_TAG = display_width + 1;
@@ -33,16 +42,13 @@ int main(int argc, char *argv[])
   float scale_real=(float)(imag_max-imag_min)/display_width;
   float scale_imag=(float)(real_max-real_min)/display_height;
 
-  MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-  MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-  if(nprocs > display_height+1){
-    if(myid==0)
-      printf("illegal slave count\nnprocs - 1 (%i) must be no larger than display_height (%i)\naborting...\n",nprocs - 1,display_height);
-    return MPI_Finalize();
-  }
-  MPI_Status s;
   int *color;
   color = (int *) malloc(display_width * sizeof(int));
+  
+  MPI_Init(&argc,&argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+  MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+  MPI_Status s;
 
   if (myid == 0) { //master
     int **grid;
