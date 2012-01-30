@@ -47,10 +47,10 @@ int main(int argc, char *argv[])
   }
 
   int nprocs,myid;
-  const int KILL_TAG = display_width + 1;
+  const int KILL_TAG = display_height + 1;
 
-  real_max=(float)psize*display_width;
-  imag_min=(float)psize*display_height;
+  real_max=real_min + (float) psize*display_width;
+  imag_min=imag_max - (float) psize*display_height;
 
   float scale_real=(float)(real_max-real_min)/display_width;
   float scale_imag=(float)(imag_max-imag_min)/display_height;
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
     MPI_Recv(NULL,0,MPI_INT,MASTER_P,MPI_ANY_TAG,MPI_COMM_WORLD,&s);
     while(s.MPI_TAG != KILL_TAG) {
       complx c;
-      c.imag = imag_min + ((float) s.MPI_TAG * scale_imag);
+      c.imag = imag_max - ((float) s.MPI_TAG * scale_imag);
       for (int col_num = 0; col_num < display_width; col_num++) {
         c.real = real_min + ((float) col_num * scale_real);
         *(color+col_num) = cal_pixel(c);
