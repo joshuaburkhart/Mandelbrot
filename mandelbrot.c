@@ -18,10 +18,16 @@ int output(int **grid, int rows, int cols);
 
 int main(int argc, char *argv[])
 {
+  //defaults
+  int display_height=100;
+  int display_width=100;
+  float real_min=-2.0;
+  float real_max=2.0;
+  float imag_min=-2.0;
+  float imag_max=2.0;
+  float psize=0.1; 
   
-  int display_height=100; //default to 100 rows
-  int display_width=100; //default to 100 cols
-
+  //parsing args
   for(int i=0;i<argc;i++){
     if(0==strcmp(argv[i],"-h")){
       display_height=atoi(argv[i+1]);
@@ -29,18 +35,25 @@ int main(int argc, char *argv[])
     else if(0==strcmp(argv[i],"-w")){
       display_width=atoi(argv[i+1]);
     }
+    else if(0==strcmp(argv[i],"-s")){
+      psize=(float) atof(argv[i+1]);
+    }
+    else if(0==strcmp(argv[i],"-x")){
+      real_min=(float) atof(argv[i+1]);
+    }
+    else if(0==strcmp(argv[i],"-y")){
+      imag_max=(float) atof(argv[i+1]);
+    }
   }
 
-  const int real_min=-2;
-  const int real_max=2;
-  const int imag_min=-2;
-  const int imag_max=2;
-  
   int nprocs,myid;
   const int KILL_TAG = display_width + 1;
 
-  float scale_real=(float)(imag_max-imag_min)/display_width;
-  float scale_imag=(float)(real_max-real_min)/display_height;
+  real_max=(float)psize*display_width;
+  imag_min=(float)psize*display_height;
+
+  float scale_real=(float)(real_max-real_min)/display_width;
+  float scale_imag=(float)(imag_max-imag_min)/display_height;
 
   int *color;
   color = (int *) malloc(display_width * sizeof(int));
@@ -76,6 +89,9 @@ int main(int argc, char *argv[])
       memcpy(*(grid+s.MPI_TAG),color,display_width*sizeof(int));
     }while(busy_slave_count > 0);
     output(grid,display_height,display_width);
+    for(int i=0;i<display_height;i++){
+      free(*(grid+i));
+    }
     free(grid);
   }
   else{ //slave
