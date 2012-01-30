@@ -1,0 +1,34 @@
+Joshua Burkhart
+1/29/2012
+Dr. John Conery
+CS 455/555
+
+Project 2: Mandelbrot Set
+
+what did you do for this project?
+
+what are the main sections of the program?
+-initialization (parsing command line etc)
+-master
+-slave
+
+is there anything you want me to know about your project?
+-cmdline arguments -> scaling takes care of the size of the space covered by each pixel parameter
+-dynamic allocation allows for both load balancing and variability in grid size
+-wrapped with R script
+
+what is the output?
+-output.csv
+
+how did you test the program?
+-tested manually on local virtual machine
+-tested manually on ACISS
+
+how does the program perform?
+-speedup
+-comp/comm ratio
+-other stats from textbook
+
+what would you fix or add if you were to work on it some more?
+-dynamic decompression
+-build for valgrind …. http://valgrind.org/docs/manual/mc-manual.html#mc-manual.mpiwrap
