@@ -8,7 +8,7 @@ Project 2: Mandelbrot Set
 ---------------------------------
 what did you do for this project?
 ---------------------------------
-For this project I constructed a program, mandelbrot.c, based on pseudo code found in the text book* and modified it in a way such that it parses command line arguments, calulates the specified region of the Mandelbrot Set to scale, and outputs the calculations to output.csv, a csv file. Additionally I wrote a small shell script, rrun.sh, that takes arguments, starts mpirun, passes arguments to the mandelbrot binary file, scans the csv into R, orients the R object appropriately, outputs the R object to Rplots.pdf, a pdf file, and displays the pdf using evince. The usage of rrun.sh is as follows:
+For this project I constructed a program, mandelbrot.c, based on pseudo code found in the text book* and modified it in a way such that it parses command line arguments, calculates the specified region of the Mandelbrot Set to scale, and outputs the calculations to output.csv, a csv file. Additionally I wrote a small shell script, rrun.sh, that takes arguments, starts mpirun, passes arguments to the mandelbrot binary file, scans the csv into R, orients the R object appropriately, outputs the R object to Rplots.pdf, a pdf file, and displays the pdf using evince. The usage of rrun.sh is as follows:
 
 $./rrun.sh <top left x value> <top left y value> <size of pixel> <number of x pixels> <number of y pixels>
 
@@ -16,7 +16,7 @@ Of course it is possible to execute the binary file without the use of a script.
 
 $./mandelbrot -x <top left x value> -y <top left y value> -s <size of pixel> -w <number of x pixels> -h <number of y pixels>
 
-*Note: The arguments passed to the binary file may be passed in any order but should be preceeded by their indicating character (x,y,s,w, or h). If an indicating character does not preceed an argument, a default value will be used. Default values are as follows:
+*Note: The arguments passed to the binary file may be passed in any order but should be preceded by their indicating character (x,y,s,w, or h). If an indicating character does not precede an argument, a default value will be used. Default values are as follows:
 
 top left x value   =  2.0
 top left y value   = -2.0
@@ -71,7 +71,7 @@ what are the main sections of the program?
 ------------------------------------------
 Initialization: The program pulls in libraries, sets up a structure, parses command line arguments, and initializes variables that will be used throughout the duration of execution. This is sequential work thus MPI_Init() is not called to reduce duplicated.
 
-Master: Following a call to MPI_Init(), the master process creates a two diminsional array (int **grid) to store results from the slaves. The grid is needed because load balancing among slaves causes out-of-order calculations to be returned to the master. If the master were to simply print these calculations to a file, the file would be out of order. The grid allows for correct placement of calculations. The master process sends initial NULL messages to each slave. These contain no buffer but include the requested row number in their mpi tag. This technique is viable for row numbers from 0 up to the maximum value* - 1 for tag. I use height + 1 for the signal to kill a slave. The master enters a loop that listens for slaves to send one dimensional arrays of color values. When the master receives a color value array it decrements the count of active slaves and tests the count of calculated rows against the maximum row count (height). If the count of uncalculated row numbers is below the maximum row count, it sends another NULL message to the slave that just returned the color array. The slave is identified with the use of MPI_SOURCE. The count of active slaves, along with the count of calculated rows is the incremented. If the count of calculated rows is not less than the maximum row count, the slave is sent a NULL message with a kill signal in the tag. When the active slave count is 0, all of the calculations have been completed and the slaves have been sent the kill signal. The master exits its loop, prints the contents of grid to a file, frees its allocated memory, and returns the result of MPI_Finalize().
+Master: Following a call to MPI_Init(), the master process creates a two dimensional array (int **grid) to store results from the slaves. The grid is needed because load balancing among slaves causes out-of-order calculations to be returned to the master. If the master were to simply print these calculations to a file, the file would be out of order. The grid allows for correct placement of calculations. The master process sends initial NULL messages to each slave. These contain no buffer but include the requested row number in their mpi tag. This technique is viable for row numbers from 0 up to the maximum value* - 1 for tag. I use height + 1 for the signal to kill a slave. The master enters a loop that listens for slaves to send one dimensional arrays of color values. When the master receives a color value array it decrements the count of active slaves and tests the count of calculated rows against the maximum row count (height). If the count of calculated row numbers is below the maximum row count, it sends another NULL message to the slave that just returned the color array. The slave is identified with the use of MPI_SOURCE. The count of active slaves, along with the count of calculated rows is the incremented. If the count of calculated rows is not less than the maximum row count, the slave is sent a NULL message with a kill signal in the tag. When the active slave count is 0, all of the calculations have been completed and the slaves have been sent the kill signal. The master exits its loop, prints the contents of grid to a file, frees its allocated memory, and returns the result of MPI_Finalize().
 
 Slave: Each slave begins by listening for its initial message from the master. The slave extracts the row number from the message and compares it to the kill signal. If the row number is not the kill signal, it calculates the colors that belong in that row and sends the an array containing those values to the master. The slave then listens for the next message from the master. If the row number is the kill signal, the slave frees its allocated memory, and returns the result of MPI_Finalize().
 
@@ -85,7 +85,7 @@ I wrapped the execution of the mandelbrot binary with a shell script that uses R
 -------------------
 what is the output?
 -------------------
-The output of the mandelbrot binary file is output.csv, a comma separated representation of the color values in the Mandlebrot Set. Each row is on a seperate line.
+The output of the mandelbrot binary file is output.csv, a comma separated representation of the color values in the Mandlebrot Set. Each row is on a separate line.
 
 -----------------------------
 how did you test the program?
