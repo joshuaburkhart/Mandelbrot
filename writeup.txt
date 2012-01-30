@@ -1,34 +1,131 @@
 Joshua Burkhart
-1/29/2012
+1/30/2012
 Dr. John Conery
 CS 455/555
 
 Project 2: Mandelbrot Set
 
+---------------------------------
 what did you do for this project?
+---------------------------------
+For this project I constructed a program, mandelbrot.c, based on pseudo code found in the text book* and modified it in a way such that it parses command line arguments, calulates the specified region of the Mandelbrot Set to scale, and outputs the calculations to output.csv, a csv file. Additionally I wrote a small shell script, rrun.sh, that takes arguments, starts mpirun, passes arguments to the mandelbrot binary file, scans the csv into R, orients the R object appropriately, outputs the R object to Rplots.pdf, a pdf file, and displays the pdf using evince. The usage of rrun.sh is as follows:
 
+$./rrun.sh <top left x value> <top left y value> <size of pixel> <number of x pixels> <number of y pixels>
+
+Of course it is possible to execute the binary file without the use of a script. The usage of the binary is as follows:
+
+$./mandelbrot -x <top left x value> -y <top left y value> -s <size of pixel> -w <number of x pixels> -h <number of y pixels>
+
+*Note: The arguments passed to the binary file may be passed in any order but should be preceeded by their indicating character (x,y,s,w, or h). If an indicating character does not preceed an argument, a default value will be used. Default values are as follows:
+
+top left x value   =  2.0
+top left y value   = -2.0
+size of pixel      =  0.1
+number of x pixels =  100
+number of y pixels =  100
+
+*Note: The mandelbrot binary file takes <top left x value>, <top left y value>, and <size of pixel> arguments as floats. Thus they should be specified as such when passed.
+
+An example of rrun.sh execution is as shown below:
+
+$Mint12-VirtualBox Mandelbrot # ./rrun.sh 10 -1.5 1.5 0.005 400 400
+$
+$R version 2.13.1 (2011-07-08)
+$Copyright (C) 2011 The R Foundation for Statistical Computing
+$ISBN 3-900051-07-0
+$Platform: x86_64-pc-linux-gnu (64-bit)
+$
+$R is free software and comes with ABSOLUTELY NO WARRANTY.
+$You are welcome to redistribute it under certain conditions.
+$Type 'license()' or 'licence()' for distribution details.
+$
+$  Natural language support but running in an English locale
+$
+$R is a collaborative project with many contributors.
+$Type 'contributors()' for more information and
+$'citation()' on how to cite R or R packages in publications.
+$
+$Type 'demo()' for some demos, 'help()' for on-line help, or
+$'help.start()' for an HTML browser interface to help.
+$Type 'q()' to quit R.
+$
+$> A = scan(file="output.csv",sep=",")
+$Read 160000 items
+$> A = matrix(A,nrow=400,ncol=400)
+$> A = A[,ncol(A):1]
+$> image(A,axes=FALSE,col=rainbow(384,end=.75))
+$> quit("no")
+$
+$(evince:9163): Gtk-WARNING **: Attempting to store changes into `/root/.local/share/recently-used.xbel', but failed: Failed to create file '/root/.local/share/recently-used.xbel.KLN58V': No such file or directory
+$
+$(evince:9163): Gtk-WARNING **: Attempting to set the permissions of `/root/.local/share/recently-used.xbel', but failed: No such file or directory
+$
+$(evince:9163): Gtk-WARNING **: Attempting to store changes into `/root/.local/share/recently-used.xbel', but failed: Failed to create file '/root/.local/share/recently-used.xbel.ORYS8V': No such file or directory
+$
+$(evince:9163): Gtk-WARNING **: Attempting to set the permissions of `/root/.local/share/recently-used.xbel', but failed: No such file or directory
+
+*Note: When executing rrun.sh, one or more "(evince:9163): Gtk-WARNING" error messages may print to the screen. From all my investigation this is a harmless error and does not prevent evince from displaying the Rplots.pdf file.
+
+------------------------------------------
 what are the main sections of the program?
--initialization (parsing command line etc)
--master
--slave
+------------------------------------------
+Initialization: The program pulls in libraries, sets up a structure, parses command line arguments, and initializes variables that will be used throughout the duration of execution. This is sequential work thus MPI_Init() is not called to reduce duplicated.
 
+Master: Following a call to MPI_Init(), the master process creates a two diminsional array (int **grid) to store results from the slaves. The grid is needed because load balancing among slaves causes out-of-order calculations to be returned to the master. If the master were to simply print these calculations to a file, the file would be out of order. The grid allows for correct placement of calculations. The master process sends initial NULL messages to each slave. These contain no buffer but include the requested row number in their mpi tag. This technique is viable for row numbers from 0 up to the maximum value* - 1 for tag. I use height + 1 for the signal to kill a slave. The master enters a loop that listens for slaves to send one dimensional arrays of color values. When the master receives a color value array it decrements the count of active slaves and tests the count of calculated rows against the maximum row count (height). If the count of uncalculated row numbers is below the maximum row count, it sends another NULL message to the slave that just returned the color array. The slave is identified with the use of MPI_SOURCE. The count of active slaves, along with the count of calculated rows is the incremented. If the count of calculated rows is not less than the maximum row count, the slave is sent a NULL message with a kill signal in the tag. When the active slave count is 0, all of the calculations have been completed and the slaves have been sent the kill signal. The master exits its loop, prints the contents of grid to a file, frees its allocated memory, and returns the result of MPI_Finalize().
+
+Slave: Each slave begins by listening for its initial message from the master. The slave extracts the row number from the message and compares it to the kill signal. If the row number is not the kill signal, it calculates the colors that belong in that row and sends the an array containing those values to the master. The slave then listens for the next message from the master. If the row number is the kill signal, the slave frees its allocated memory, and returns the result of MPI_Finalize().
+
+---------------------------------------------------------
 is there anything you want me to know about your project?
--cmdline arguments -> scaling takes care of the size of the space covered by each pixel parameter
--dynamic allocation allows for both load balancing and variability in grid size
--wrapped with R script
+---------------------------------------------------------
+The command line arguments can be passed in any order.
+I am using dynamic load balancing, sending each slave one row at a time.
+I wrapped the execution of the mandelbrot binary with a shell script that uses R.
 
+-------------------
 what is the output?
--output.csv
+-------------------
+The output of the mandelbrot binary file is output.csv, a comma separated representation of the color values in the Mandlebrot Set. Each row is on a seperate line.
 
+-----------------------------
 how did you test the program?
--tested manually on local virtual machine
--tested manually on ACISS
+-----------------------------
+The majority of development was done on a locally hosted virtual machine with OpenMPI and R installed. Manual incremental testing was conducted equally on both the virtual machine and on ACISS.
 
+-----------------------------
 how does the program perform?
--speedup
--comp/comm ratio
--other stats from textbook
+-----------------------------
+The program will perform differently for the same number of color values depending on the dimensions of the viewing area. The worst case scenario would occur when the width of the viewing area was 1 and the height of the viewing area was high. The calculations below assume a square viewing area.
 
+tcomm1 = (p-1) * (t_startup)
+tcomp1 = n^(1/2)
+tcomm2 = (p-1) * (t_startup + t_data * n^(1/2))
+tcomp2 = 0
+
+tp = t_comm1 + t_comp1 + t_comm2 + t_comp2
+   = (p-1) * (t_startup) + n^(1/2) + (p-1) * (t_startup + t_data * n^(1/2)) + 0
+   = p * t_startup - t_startup + n^(1/2) + p * t_startup - t_startup + p * t_data * n^(1/2) - t_data * n^(1/2)
+   = (2 * p - 2) * t_startup + (p - 1) * t_data * n^(1/2) + n^(1/2) 
+   = O(n)
+
+speedup factor = t_s / t_p
+               = n/((2 * p - 2) * t_startup + (p - 1) * t_data * n^(1/2) + n^(1/2))
+
+speedup factor for computation only = t_s / t_p
+                                    = n/n^(1/2)
+
+comp/comm ratio = t_comp / t_com
+                = n^(1/2)/((p-1) * (t_startup) + (p-1) * (t_startup + t_data * n^(1/2)))
+                = n^(1/2)/(p * t_startup - t_startup + p * t_startup - t_startup + p * t_data * n^(1/2) - t_data * n^(1/2))
+                = n^(1/2)/((2 * p - 2) t_startup + (p-1) * t_data * n^(1/2))
+
+--------------------------------------------------------------
 what would you fix or add if you were to work on it some more?
--dynamic decompression
--build for valgrind …. http://valgrind.org/docs/manual/mc-manual.html#mc-manual.mpiwrap
+--------------------------------------------------------------
+Dynamic Decomposition: Currently the program breaks down the problem by row. The problem could be broken down by Nrows where N is the number of rows that minimizes the comp/comm ratio. As communication times vary, testing for this feature became time consuming.
+
+Build and test with valgrind: Currently, the program is not built for testing with valgrind. Special considerations* must be made during development of an MPI program if valgrind is to be utilized. 
+
+*Parallel Programming 2005 (2nd Edition): Wilkinson, Allen
+*https://computing.llnl.gov/tutorials/mpi/ reports the current maximum value for tag as 32767
+*http://valgrind.org/docs/manual/mc-manual.html#mc-manual.mpiwrap discusses considerations for valgrind integration.
